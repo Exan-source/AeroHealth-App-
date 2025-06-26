@@ -695,7 +695,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (index == 3) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const FreeLiveCoursesPage()),
+              MaterialPageRoute(builder: (context) => const EducationalScreen()),
             );
           } else if (index != 0) {
             ScaffoldMessenger.of(context).showSnackBar(

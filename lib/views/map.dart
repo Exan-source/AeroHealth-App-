@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:aerohealth/views/devicesscreen.dart';
+import 'package:aerohealth/views/education.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
@@ -240,33 +242,76 @@ class _AQIMapScreenState extends State<AQIMapScreen> {
               ),
             ),
           ),
-          Positioned(
-            right: 10,
-            top: 100,
-            child: Material(
-              color: Colors.black.withAlpha(102),
-              borderRadius: BorderRadius.circular(12),
-              child: ToggleButtons(
+          SizedBox(
+            child: Positioned(
+              right: 100,
+              top: 10,
+              child: Material(
+                color: Colors.black.withAlpha(102),
                 borderRadius: BorderRadius.circular(12),
-                selectedColor: Colors.white,
-                fillColor: Colors.blue,
-                isSelected: [_selectedType == 'aqi', _selectedType == 'pm2_5'],
-                onPressed: (index) {
-                  setState(() {
-                    _selectedType = index == 0 ? 'aqi' : 'pm2_5';
-                    if (_userLocation != null) {
-                      _fetchAQIMarkers(_userLocation!.latitude!, _userLocation!.longitude!);
-                    }
-                  });
-                },
-                children: const [
-                  Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('AQI')),
-                  Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('PM2.5')),
-                ],
+                child: ToggleButtons(
+                  borderRadius: BorderRadius.circular(12),
+                  selectedColor: Colors.white,
+                  fillColor: Colors.blue,
+                  isSelected: [_selectedType == 'aqi', _selectedType == 'pm2_5'],
+                  onPressed: (index) {
+                    setState(() {
+                      _selectedType = index == 0 ? 'aqi' : 'pm2_5';
+                      if (_userLocation != null) {
+                        _fetchAQIMarkers(_userLocation!.latitude!, _userLocation!.longitude!);
+                      }
+                    });
+                  },
+                  children: const [
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('AQI')),
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('PM2.5')),
+                  ],
+                ),
               ),
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white.withAlpha(242),
+        selectedItemColor: Colors.blue[800],
+        unselectedItemColor: Colors.grey[600],
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
+          BottomNavigationBarItem(icon: Icon(Icons.devices), label: 'Devices'),
+          BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Learn More'),
+        ],
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AQIMapScreen()),
+            );
+          }
+          else if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DevicesScreen()),
+            );
+          }
+          if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const EducationalScreen()),
+            );
+          } else if (index != 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${['Devices', 'Buy', 'Ranking'][index - 2]} coming soon!',
+                ),
+              ),
+            );
+          }
+        },
       ),
     );
   }

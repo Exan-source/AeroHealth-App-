@@ -668,21 +668,38 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
+      print("Starting Google sign-in...");
+
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      final GoogleSignInAuthentication googleAuth =
-      await googleUser!.authentication;
+      if (googleUser == null) {
+        _showSnackBar('Sign-in aborted by user.');
+        return;
+      }
+
+      print("Google user: ${googleUser.email}");
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      print("Access token: ${googleAuth.accessToken}");
+      print("ID token: ${googleAuth.idToken}");
+
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
+
       await FirebaseAuth.instance.signInWithCredential(credential);
+      print("Signed in successfully!");
       _navigateToDashboard();
-    } catch (e) {
+    } catch (e, st) {
+      print("Google sign-in error: $e");
+      print("Stack trace: $st");
       _showSnackBar('Google sign in failed: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   Future<void> _signInWithFacebook() async {
     setState(() => _isLoading = true);

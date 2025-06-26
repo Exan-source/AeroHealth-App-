@@ -1,3 +1,5 @@
+import 'package:aerohealth/views/education.dart';
+import 'package:aerohealth/views/map.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 
@@ -47,6 +49,47 @@ class _DevicesScreenState extends State<DevicesScreen> {
         },
         tooltip: 'Add Device',
         child: const Icon(Icons.add),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white.withAlpha(242),
+        selectedItemColor: Colors.blue[800],
+        unselectedItemColor: Colors.grey[600],
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
+          BottomNavigationBarItem(icon: Icon(Icons.devices), label: 'Devices'),
+          BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Learn More'),
+        ],
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AQIMapScreen()),
+            );
+          }
+          else if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DevicesScreen()),
+            );
+          }
+          if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const EducationalScreen()),
+            );
+          } else if (index != 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${['Devices', 'Buy', 'Ranking'][index - 2]} coming soon!',
+                ),
+              ),
+            );
+          }
+        },
       ),
     );
   }
