@@ -1,5 +1,6 @@
 import 'package:aerohealth/views/dashboard.dart';
 import 'package:aerohealth/views/login.dart';
+import 'package:aerohealth/views/splashscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -106,6 +107,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      home: const SplashScreen(),
       key: MyApp._appKey,
       debugShowCheckedModeBanner: false,
       title: 'AeroHealth',
@@ -114,7 +116,6 @@ class _MyAppState extends State<MyApp> {
         '/login': (context) => const LoginPage(),
         '/dashboard': (context) => const HomeScreen(),
       },
-      initialRoute: '/login',
       theme: ThemeData(
         brightness: Brightness.light,
         scaffoldBackgroundColor: Colors.white,
@@ -149,7 +150,7 @@ class _MyAppState extends State<MyApp> {
           displayColor: Colors.white,
         ),
       ),
-      home: const LoginPage(),
     );
   }
 }
+

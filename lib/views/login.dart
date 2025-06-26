@@ -8,7 +8,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
-
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -546,10 +545,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               onPressed: _isLoading ? null : _signInWithGoogle,
             ),
             const SizedBox(width: 16),
-            IconButton(
-              icon: const FaIcon(FontAwesomeIcons.facebook, color: Colors.blue),
-              onPressed: _isLoading ? null : _signInWithFacebook,
-            ),
           ],
         ),
         const SizedBox(height: 16),

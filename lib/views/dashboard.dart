@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:aerohealth/views/devicesscreen.dart';
+import 'package:aerohealth/views/login.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
@@ -10,6 +12,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:aerohealth/views/education.dart';
+import 'package:geocoding/geocoding.dart';
+
+
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 FlutterLocalNotificationsPlugin();
@@ -115,6 +121,7 @@ void _saveUserLocationAndToken(Position pos) async {
 
 class _HomeScreenState extends State<HomeScreen> {
   final UserProfile userProfile = UserProfile(respiratoryCondition: 'Asthma');
+  int? liveAQI;
   int currentAQI = 0;
   bool isHealthTipsExpanded = false;
   bool isLoading = false;
@@ -186,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() => isLoading = true); // Start loading
 
-    final apiKey = '6d2c6642-6252-42d6-8edc-f251b6117f10';
+    final apiKey = '254a1023cb1fdfcf257a4c37a6a592e1'; // Replace with your actual API key
 
     try {
       await Geolocator.requestPermission();
@@ -194,45 +201,53 @@ class _HomeScreenState extends State<HomeScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      _saveUserLocationAndToken(position); // ✅ Save user token & location to Firestore
+      _saveUserLocationAndToken(position); // ✅ Save location to Firestore
 
-      final url =
-          'https://api.airvisual.com/v2/nearest_city?lat=${position.latitude}&lon=${position.longitude}&key=$apiKey';
+      final url = Uri.parse(
+        'https://api.openweathermap.org/data/2.5/air_pollution?lat=${position.latitude}&lon=${position.longitude}&appid=$apiKey',
+      );
 
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(url);
 
       if (!mounted) return;
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        final aqi = jsonResponse['data']['current']['pollution']['aqius'];
-        final city = jsonResponse['data']['city'];
-        final country = jsonResponse['data']['country'];
-        final main = jsonResponse['data']['current']['pollution']['mainus'];
+        final item = jsonResponse['list'][0];
+        final aqi = item['main']['aqi'];
+        final components = item['components'];
+        final main = _getMainPollutant(components);
+        final convertedAQI = _mapOWAQIToUSScale(aqi);
+
+        // 🌍 Reverse geocode lat/lon to city/country
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        String city = placemarks[0].locality ?? placemarks[0].subAdministrativeArea ?? '';
+        String country = placemarks[0].country ?? '';
 
         setState(() {
-          currentAQI = aqi;
           userCity = city;
           userCountry = country;
           mainPollutant = main.toUpperCase();
+          liveAQI = convertedAQI;
         });
 
-        if (aqi > 150) {
+        if (convertedAQI > 150) {
           await showLocalNotification(
             "⚠️ Air Quality Alert",
-            "AQI is $aqi, bro this air be wild. Stay indoors!",
+            "AQI is $convertedAQI, bro this air be wild. Stay indoors!",
           );
         }
 
-
-        // 🌍 save token & AQI to Firestore
         final token = await FirebaseMessaging.instance.getToken();
         final user = FirebaseAuth.instance.currentUser;
 
         if (user != null && token != null) {
           await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
             "fcmToken": token,
-            "currentAQI": aqi,
+            "currentAQI": convertedAQI,
             "city": city,
             "country": country,
           }, SetOptions(merge: true));
@@ -240,29 +255,28 @@ class _HomeScreenState extends State<HomeScreen> {
           print("📍 Token & AQI saved to Firestore");
         }
 
-        // 🔥 Push to alerts if AQI is dangerous
-        if (aqi > 150) {
+        if (convertedAQI > 150) {
           await FirebaseFirestore.instance.collection('alerts').add({
             'userId': FirebaseAuth.instance.currentUser?.uid,
-            'aqi': aqi,
+            'aqi': convertedAQI,
             'timestamp': Timestamp.now(),
           });
         }
 
-        if (aqi <= 50) {
+        // 🧠 Show alert
+        if (convertedAQI <= 50) {
           _showAQIAlert(context, "Air Quality: Excellent 😮‍💨", "The air is fresh and clean. Feel free to go outside and enjoy your day! 🌿");
-        } else if (aqi <= 100) {
+        } else if (convertedAQI <= 100) {
           _showAQIAlert(context, "Air Quality: Moderate 😌", "Air quality is acceptable. You’re good to go about your activities.");
-        } else if (aqi <= 150) {
+        } else if (convertedAQI <= 150) {
           _showAQIAlert(context, "Air Quality: Sensitive Groups Alert 🥴", "Air may not be ideal for those with respiratory conditions. Please take precautions.");
-        } else if (aqi <= 200) {
+        } else if (convertedAQI <= 200) {
           _showAQIAlert(context, "Air Quality: Unhealthy 😷", "It's best to limit your time outdoors. Try to stay inside if possible.");
         } else {
           _showAQIAlert(context, "Air Quality: Very Unhealthy ☠️", "The air is seriously polluted. Stay indoors and consider wearing a mask if you must go out.");
         }
 
-
-        print('💨 AQI: $aqi');
+        print('💨 AQI (est.): $convertedAQI');
         print('🌍 Location: $city, $country');
       } else {
         print('❌ Failed to fetch AQI: ${response.body}');
@@ -271,12 +285,31 @@ class _HomeScreenState extends State<HomeScreen> {
       print('⚠️ Error fetching AQI: $e');
     } finally {
       if (mounted) {
-        setState(() => isLoading = false); // ✅ Always stop loading
+        setState(() => isLoading = false);
       }
     }
-
-
   }
+
+// Converts OpenWeather's AQI (1–5) to approximate US AQI
+  int _mapOWAQIToUSScale(int owAqi) {
+    switch (owAqi) {
+      case 1: return 50;
+      case 2: return 100;
+      case 3: return 150;
+      case 4: return 200;
+      case 5: return 300;
+      default: return 0;
+    }
+  }
+
+// Determines main pollutant by highest concentration
+  String _getMainPollutant(Map<String, dynamic> components) {
+    final sorted = components.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.first.key;
+  }
+
+
 
 
 
@@ -473,11 +506,18 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Air Quality'),
+        title: const Text(
+          'AeroHealth',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 26,
+            color: Colors.white,
+          ),
+        ),
         actions: [
           IconButton(
             icon: Icon(
-              isDarkMode ? Icons.wb_sunny_outlined : Icons.nights_stay_outlined,
+              isDarkMode ?   Icons.nights_stay_outlined :Icons.wb_sunny_outlined,
               color: Colors.white,
             ),
             onPressed: () {
@@ -487,12 +527,47 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile settings coming soon!')),
-              );
-            },
+            icon: const Icon(color: Colors.white, Icons.person),
+              onPressed: () async {
+                final user = FirebaseAuth.instance.currentUser;
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Profile'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (user != null)
+                          Text('Logged in as:\n${user.email}')
+                        else
+                          const Text('Not logged in.'),
+                      ],
+                    ),
+                    actions: [
+                      if (user != null)
+                        TextButton.icon(
+                          icon: const Icon(Icons.logout),
+                          label: const Text('Sign Out'),
+                          onPressed: () async {
+                            await FirebaseAuth.instance.signOut();
+                            if (context.mounted) {
+                              Navigator.of(context).pop(); // Close dialog
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (_) => const LoginPage()),
+                              );
+                            }
+                          },
+                        ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
           ),
         ],
       ),
@@ -500,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
         fit: StackFit.expand,
         children: [
           Image.asset(
-            isDarkMode ? 'assets/black.jpg' : 'assets/brown.jpg',
+            isDarkMode ? 'assets/brown.jpg' : 'assets/black.jpg',
             fit: BoxFit.cover,
           ),
           SafeArea(
@@ -602,12 +677,25 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
           BottomNavigationBarItem(icon: Icon(Icons.devices), label: 'Devices'),
+          BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Learn More'),
         ],
         onTap: (index) {
           if (index == 1) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const EOMapScreen()),
+              MaterialPageRoute(builder: (context) => const AQIMapScreen()),
+            );
+          }
+          else if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DevicesScreen()),
+            );
+          }
+          if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const FreeLiveCoursesPage()),
             );
           } else if (index != 0) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -656,6 +744,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
   Widget _buildAQICard() {
+    final displayedAQI = liveAQI ?? 0;
+    final color = _getAQIColor(displayedAQI);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withAlpha(90),
@@ -675,8 +766,8 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           children: [
             Text(
-              'Live AQI',
-              style: TextStyle(
+              liveAQI != null ? 'AQI: $liveAQI' : 'Fetching AQI...',
+              style: const TextStyle(
                 fontSize: 18,
                 color: Colors.white70,
                 fontWeight: FontWeight.w500,
@@ -690,16 +781,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 120,
                   height: 120,
                   child: CircularProgressIndicator(
-                    value: currentAQI / 300,
+                    value: displayedAQI / 300,
                     strokeWidth: 8,
                     backgroundColor: Colors.white.withAlpha(51),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      _getAQIColor(currentAQI),
-                    ),
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
                 ),
                 Text(
-                  '$currentAQI',
+                  '$displayedAQI',
                   style: TextStyle(
                     fontSize: 48,
                     fontWeight: FontWeight.w900,
@@ -707,7 +796,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     shadows: [
                       Shadow(
                         blurRadius: 6,
-                        color: _getAQIColor(currentAQI).withAlpha(128),
+                        color: color.withAlpha(128),
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -716,7 +805,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Air Quality is',
               style: TextStyle(
                 fontSize: 18,
@@ -726,7 +815,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              _getAQIStatus(currentAQI),
+              _getAQIStatus(displayedAQI),
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
@@ -734,7 +823,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 shadows: [
                   Shadow(
                     blurRadius: 4,
-                    color: _getAQIColor(currentAQI).withAlpha(102),
+                    color: color.withAlpha(102),
                     offset: const Offset(0, 2),
                   ),
                 ],
@@ -755,6 +844,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
 
+
   Widget _buildAQIEmoji() {
     String emoji = _getAQIEmoji(currentAQI);
     return Container(
@@ -762,6 +852,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withAlpha(90),
         border: Border.all(color: Colors.white.withAlpha(77)),
+        borderRadius: BorderRadius.circular(15),
       ),
       child: Text(emoji, style: const TextStyle(fontSize: 40)),
     );

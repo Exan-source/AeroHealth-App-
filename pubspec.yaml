@@ -56,12 +56,18 @@ dependencies:
   flutter_local_notifications: ^19.3.0
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
+  location: ^8.0.1
+  geocoding: ^4.0.0
+  url_launcher: ^6.3.1
+
 
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  flutter_native_splash: ^2.4.6
 
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -88,6 +94,8 @@ flutter:
   assets:
      - assets/black.jpg
      - assets/brown.jpg
+     - assets/aerohealth.png
+     - assets/aero.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -114,3 +122,11 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_native_splash:
+  color: "#c8f5ed"  # or your background color
+  image: assets/aerohealth.png  # your splash image
+  android: true
+  ios: true
+  fullscreen: true
+  android_gravity: center
